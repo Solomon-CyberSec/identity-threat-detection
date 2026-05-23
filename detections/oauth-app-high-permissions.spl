@@ -1,0 +1,28 @@
+| comment "Detection: OAuth App Granted High Permissions"
+| comment "Tactic: Persistence | Technique: T1528"
+| comment "Platform: Azure AD / Entra ID | Severity: High"
+| comment "Description: Detects when users consent to OAuth applications"
+| comment "that request high-privilege scopes like Mail.ReadWrite or Files.ReadWrite.All"
+
+index=azure sourcetype=azure:aad:audit OperationName="Consent to application"
+| search Target{}.modifiedProperties{}.newValue="*Mail.ReadWrite*"
+    OR Target{}.modifiedProperties{}.newValue="*Files.ReadWrite.All*"
+    OR Target{}.modifiedProperties{}.newValue="*Directory.ReadWrite.All*"
+    OR Target{}.modifiedProperties{}.newValue="*RoleManagement.ReadWrite.Directory*"
+    OR Target{}.modifiedProperties{}.newValue="*Application.ReadWrite.All*"
+| eval consenting_user = 'InitiatedBy.user.userPrincipalName'
+| eval app_name = mvindex('Target{}.displayName', 0)
+| eval granted_scopes = mvindex('Target{}.modifiedProperties{}.newValue', 0)
+| stats
+    count AS consent_events,
+    values(app_name) AS apps,
+    values(granted_scopes) AS scopes
+    BY consenting_user, _time
+| sort - consent_events
+| table _time, consenting_user, consent_events, apps, scopes
+| rename
+    _time AS "Timestamp",
+    consenting_user AS "User Who Consented",
+    consent_events AS "Consent Events",
+    apps AS "Application Names",
+    scopes AS "Permissions Granted"
