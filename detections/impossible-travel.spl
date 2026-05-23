@@ -1,0 +1,29 @@
+| comment "Detection: Impossible Travel"
+| comment "Tactic: Initial Access | Technique: T1078"
+| comment "Platform: Azure AD / Entra ID | Severity: High"
+| comment "Description: Detects logins from geographically distant locations"
+| comment "within a timeframe that makes physical travel impossible."
+
+index=azure sourcetype=azure:aad:signin ResultType=0
+| eval epoch_time = strptime(_time, "%Y-%m-%dT%H:%M:%S")
+| sort UserPrincipalName, epoch_time
+| streamstats
+    current=f
+    last(Location) AS prev_location,
+    last(IPAddress) AS prev_ip,
+    last(epoch_time) AS prev_time
+    BY UserPrincipalName
+| eval time_diff_hours = round((epoch_time - prev_time) / 3600, 2)
+| where isnotnull(prev_location)
+    AND Location != prev_location
+    AND time_diff_hours < 3
+    AND time_diff_hours > 0
+| table _time, UserPrincipalName, prev_location, Location, prev_ip, IPAddress, time_diff_hours
+| rename
+    _time AS "Login Time",
+    UserPrincipalName AS "User",
+    prev_location AS "Previous Location",
+    Location AS "Current Location",
+    prev_ip AS "Previous IP",
+    IPAddress AS "Current IP",
+    time_diff_hours AS "Hours Between Logins"
