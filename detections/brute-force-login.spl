@@ -1,0 +1,21 @@
+| comment "Detection: Brute Force Login"
+| comment "Tactic: Credential Access | Technique: T1110.001"
+| comment "Platform: AD / Entra ID | Severity: High"
+| comment "Description: Detects repeated failed login attempts against a single account."
+
+index=wineventlog EventCode=4625 OR index=azure sourcetype=azure:aad:signin ResultType!=0
+| bucket _time span=5m
+| stats
+    count AS failure_count,
+    dc(src_ip) AS source_ips,
+    values(src_ip) AS ip_list
+    BY _time, user
+| where failure_count >= 15
+| sort - failure_count
+| table _time, user, failure_count, source_ips, ip_list
+| rename
+    _time AS "Window Start",
+    user AS "Target Account",
+    failure_count AS "Failed Attempts",
+    source_ips AS "Unique Source IPs",
+    ip_list AS "IP Addresses"
