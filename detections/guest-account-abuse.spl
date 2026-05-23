@@ -1,0 +1,31 @@
+| comment "Detection: Guest / External Account Abuse"
+| comment "Tactic: Initial Access | Technique: T1078.004"
+| comment "Platform: Azure AD / Entra ID | Severity: Medium"
+| comment "Description: Detects guest accounts performing sensitive operations"
+| comment "such as accessing SharePoint, downloading files, or accessing admin portals."
+
+index=azure (sourcetype=azure:aad:audit OR sourcetype=o365:management:activity)
+| search UserType=Guest OR UserType=Member
+| search Operation IN (
+    "FileDownloaded",
+    "SearchQueryPerformed",
+    "FilePreviewed",
+    "PageViewed",
+    "TeamsSessionStarted"
+)
+| stats
+    count AS activity_count,
+    values(Operation) AS operations,
+    values(ClientIP) AS ip_addresses,
+    dc(Operation) AS unique_operations
+    BY UserId, UserType
+| where UserType="Guest" AND activity_count > 20
+| sort - activity_count
+| table UserId, UserType, activity_count, unique_operations, operations, ip_addresses
+| rename
+    UserId AS "Guest Account",
+    UserType AS "Account Type",
+    activity_count AS "Total Activities",
+    unique_operations AS "Unique Operations",
+    operations AS "Operations Performed",
+    ip_addresses AS "Source IPs"
