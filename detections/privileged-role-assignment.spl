@@ -1,0 +1,25 @@
+| comment "Detection: Privileged Role Assignment"
+| comment "Tactic: Privilege Escalation | Technique: T1078.004"
+| comment "Platform: Azure AD / Entra ID | Severity: Critical"
+| comment "Description: Detects when a user is assigned a highly privileged"
+| comment "Azure AD role such as Global Admin or Privileged Role Administrator."
+
+index=azure sourcetype=azure:aad:audit
+    OperationName="Add member to role"
+| search Target{}.modifiedProperties{}.newValue IN (
+    "*Global Administrator*",
+    "*Privileged Role Administrator*",
+    "*Security Administrator*",
+    "*Exchange Administrator*",
+    "*SharePoint Administrator*",
+    "*Compliance Administrator*"
+)
+| eval assigned_user = mvindex('Target{}.userPrincipalName', 0)
+| eval assigned_role = mvindex('Target{}.modifiedProperties{}.newValue', 0)
+| eval assigned_by = 'InitiatedBy.user.userPrincipalName'
+| table _time, assigned_by, assigned_user, assigned_role
+| rename
+    _time AS "Timestamp",
+    assigned_by AS "Assigned By",
+    assigned_user AS "Assigned To",
+    assigned_role AS "Role Granted"
